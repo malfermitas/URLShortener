@@ -1,15 +1,14 @@
 server:
-  host: localhost
+  host: 0.0.0.0
   port: 8080
 
 database:
-  dsn: postgres://postgres:postgres@localhost:5432/urlshortener?sslmode=disable
   max_open_conns: 25
   max_idle_conns: 10
   conn_max_lifetime: 5m
 
 redis:
-  address: localhost:6379
+  address: redis:6379
   password: ""
   db: 0
   max_record_ttl: 5m

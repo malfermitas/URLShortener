@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"urlshortener/internal/core/port/in"
 
@@ -22,11 +23,15 @@ func NewRedirectHandler(urlService in.URLService) RedirectHandler {
 }
 
 func (r redirectHandler) Redirect(ctx *ginext.Context) {
-	shortKey := ctx.Param("id")
+	shortKey := ctx.Param("short_url")
 	originalURL, err := r.urlService.GetOriginal(ctx, shortKey)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, err.Error())
+		if errors.Is(err, in.ErrNotFound) {
+			ctx.JSON(http.StatusNotFound, err.Error())
+		} else {
+			ctx.JSON(http.StatusInternalServerError, err.Error())
+		}
 	}
-
+	ctx.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 	ctx.Redirect(http.StatusMovedPermanently, originalURL)
 }

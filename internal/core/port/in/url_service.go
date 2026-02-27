@@ -2,7 +2,12 @@ package in
 
 import (
 	"context"
+	"errors"
 	"urlshortener/internal/core/model"
+)
+
+var (
+	ErrNotFound = errors.New("URL not found")
 )
 
 type URLService interface {

@@ -11,6 +11,7 @@ import (
 	"time"
 	"urlshortener/internal/adapter/in/rest"
 	"urlshortener/internal/adapter/in/rest/handler"
+	"urlshortener/internal/adapter/in/webui"
 	"urlshortener/internal/adapter/out/generator"
 	"urlshortener/internal/adapter/out/postgres"
 	"urlshortener/internal/adapter/out/redis"
@@ -33,13 +34,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	urlRepo, err := postgres.NewURLRepository(cfg.Database.DSN)
+	templatesDir := "internal/adapter/in/webui"
+
+	urlRepo, err := postgres.NewURLRepository(cfg.Database.DSN())
 	if err != nil {
 		logging.AppLogger.Error("Cannot connect to postgres database", err)
 		os.Exit(1)
 	}
 
-	hitEventRepo, err := postgres.NewURLHitEventRepository(cfg.Database.DSN)
+	hitEventRepo, err := postgres.NewURLHitEventRepository(cfg.Database.DSN())
 	if err != nil {
 		logging.AppLogger.Error("Cannot connect to postgres database", err)
 		os.Exit(1)
@@ -58,8 +61,9 @@ func main() {
 
 	shortenerHandler := handler.NewShortenerHandler(urlService)
 	redirectHandler := handler.NewRedirectHandler(urlService)
+	webUIHandler := webui.NewHandler(templatesDir)
 
-	router := rest.NewRouter(redirectHandler, shortenerHandler)
+	router := rest.NewRouter(redirectHandler, shortenerHandler, webUIHandler, templatesDir)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{

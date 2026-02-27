@@ -26,11 +26,10 @@ func NewUrlService(urlRepo out.URLRepository, keyGenerator out.KeyGenerator, hit
 }
 
 func (u urlService) Create(ctx context.Context, originalURL string, customURL string) (string, error) {
-	shortKey := customURL
-	if shortKey == "" {
+	if customURL == "" {
 		for {
-			shortKey = u.keyGenerator.Generate()
-			existing, err := u.urlRepo.FindByKey(ctx, shortKey)
+			customURL = u.keyGenerator.Generate()
+			existing, err := u.urlRepo.FindByKey(ctx, customURL)
 			if err != nil {
 				return "", err
 			}
@@ -39,7 +38,7 @@ func (u urlService) Create(ctx context.Context, originalURL string, customURL st
 			}
 		}
 	} else {
-		existing, err := u.urlRepo.FindByKey(ctx, shortKey)
+		existing, err := u.urlRepo.FindByKey(ctx, customURL)
 		if err != nil {
 			return "", err
 		}
@@ -49,9 +48,8 @@ func (u urlService) Create(ctx context.Context, originalURL string, customURL st
 	}
 
 	url := &model.URL{
-		ShortCode:   shortKey,
+		ShortCode:   customURL,
 		OriginalURL: originalURL,
-		CustomCode:  customURL,
 		CreatedAt:   time.Now(),
 	}
 
@@ -61,7 +59,7 @@ func (u urlService) Create(ctx context.Context, originalURL string, customURL st
 
 	_ = u.cache.Set(ctx, customURL, originalURL)
 
-	return shortKey, nil
+	return customURL, nil
 }
 
 func (u urlService) GetOriginal(ctx context.Context, shortURL string) (string, error) {
@@ -75,7 +73,7 @@ func (u urlService) GetOriginal(ctx context.Context, shortURL string) (string, e
 		return "", err
 	}
 	if url == nil {
-		return "", errors.New("URL not found")
+		return "", in.ErrNotFound
 	}
 
 	_ = u.cache.Set(ctx, shortURL, url.OriginalURL)
