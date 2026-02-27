@@ -2,7 +2,6 @@ CREATE TABLE IF NOT EXISTS urls (
     id BIGSERIAL PRIMARY KEY,
     short_code VARCHAR(20) NOT NULL UNIQUE,
     original_url TEXT NOT NULL,
-    custom_code VARCHAR(50) UNIQUE,
     created_at TIMESTAMP DEFAULT NOW(),
     expires_at TIMESTAMP
 );
