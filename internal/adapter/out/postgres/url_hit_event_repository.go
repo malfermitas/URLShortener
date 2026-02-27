@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"time"
+	"urlshortener/internal/adapter/out/retry"
 	"urlshortener/internal/core/model"
 	"urlshortener/internal/core/port/out"
 	"urlshortener/internal/logging"
@@ -35,7 +36,21 @@ func NewURLHitEventRepository(dsn string) (out.URLHitEventRepository, error) {
 func (u urlHitEventRepository) Store(ctx context.Context, click *model.URLHitEvent) error {
 	query := `INSERT INTO url_hit_events (url_id, user_agent, ip, country_code, referrer, device_type, os, browser, timestamp)
 			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
-	_, err := u.db.ExecContext(ctx, query, click.URLID, click.UserAgent, click.IP, click.CountryCode, click.Referrer, click.DeviceType, click.OS, click.Browser, click.Timestamp)
+	strategy := retry.GetDatabaseStrategy()
+	_, err := u.db.ExecWithRetry(
+		ctx,
+		strategy,
+		query,
+		click.URLID,
+		click.UserAgent,
+		click.IP,
+		click.CountryCode,
+		click.Referrer,
+		click.DeviceType,
+		click.OS,
+		click.Browser,
+		click.Timestamp,
+	)
 	if err != nil {
 		logging.AppLogger.Error("Failed to store click event", err)
 		return err
@@ -45,10 +60,15 @@ func (u urlHitEventRepository) Store(ctx context.Context, click *model.URLHitEve
 
 func (u urlHitEventRepository) GetTotalClicks(ctx context.Context, shortKey string) (int64, error) {
 	query := `SELECT COUNT(*) FROM url_hit_events WHERE url_id = $1`
-	row := u.db.QueryRowContext(ctx, query, shortKey)
-
+	strategy := retry.GetDatabaseStrategy()
+	row, err := u.db.QueryRowWithRetry(ctx, strategy, query, shortKey)
+	if err != nil {
+		logging.AppLogger.Error("Failed to get total clicks", err)
+		return 0, err
+	}
 	var count int64
-	err := row.Scan(&count)
+
+	err = row.Scan(&count)
 	if err != nil {
 		logging.AppLogger.Error("Failed to get total clicks", err)
 		return 0, err

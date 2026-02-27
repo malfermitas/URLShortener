@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"time"
+	localretry "urlshortener/internal/adapter/out/retry"
 	"urlshortener/internal/core/model"
 	"urlshortener/internal/core/port/out"
 	"urlshortener/internal/logging"
@@ -14,10 +15,6 @@ import (
 
 type urlRepository struct {
 	db *dbpg.DB
-}
-
-func (u *urlRepository) GetDB() *dbpg.DB {
-	return u.db
 }
 
 func NewURLRepository(dsn string) (out.URLRepository, error) {
@@ -44,8 +41,9 @@ func NewURLRepository(dsn string) (out.URLRepository, error) {
 }
 
 func (u urlRepository) Store(ctx context.Context, url *model.URL) error {
-	query := `INSERT INTO urls (short_code, original_url, custom_code, created_at) VALUES ($1, $2, $3, $4)`
-	_, err := u.db.ExecContext(ctx, query, url.ShortCode, url.OriginalURL, url.CustomCode, url.CreatedAt)
+	query := `INSERT INTO urls (short_code, original_url, created_at) VALUES ($1, $2, $3)`
+	strategy := localretry.GetDatabaseStrategy()
+	_, err := u.db.ExecWithRetry(ctx, strategy, query, url.ShortCode, url.OriginalURL, url.CreatedAt)
 	if err != nil {
 		logging.AppLogger.Error("Failed to store URL", err)
 		return err
@@ -54,11 +52,15 @@ func (u urlRepository) Store(ctx context.Context, url *model.URL) error {
 }
 
 func (u urlRepository) FindByKey(ctx context.Context, shortKey string) (*model.URL, error) {
-	query := `SELECT id, short_code, original_url, custom_code, created_at FROM urls WHERE short_code = $1`
-	row := u.db.QueryRowContext(ctx, query, shortKey)
+	query := `SELECT id, short_code, original_url, created_at FROM urls WHERE short_code = $1`
+	row, err := u.db.QueryRowWithRetry(ctx, localretry.GetDatabaseStrategy(), query, shortKey)
+	if err != nil {
+		logging.AppLogger.Error("Failed to fetch URL", err)
+		return nil, err
+	}
 
 	var url model.URL
-	err := row.Scan(&url.ID, &url.ShortCode, &url.OriginalURL, &url.CustomCode, &url.CreatedAt)
+	err = row.Scan(&url.ID, &url.ShortCode, &url.OriginalURL, &url.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
