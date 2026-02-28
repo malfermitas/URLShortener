@@ -4,18 +4,17 @@ import "time"
 
 // Analytics — результат аналитики.
 type Analytics struct {
-	ShortKey     string
-	TotalClicks  int64
-	RecentClicks []ClickInfo      // последние N переходов (например, 100)
-	ByUserAgent  map[string]int64 // количество переходов по user-agent
-	ByDay        map[string]int64 // агрегация по дням (ключ: YYYY-MM-DD)
-	ByMonth      map[string]int64 // агрегация по месяцам (ключ: YYYY-MM)
+	ShortKey     string           `json:"short_key"`
+	TotalClicks  int64            `json:"total_clicks"`
+	RecentClicks []ClickInfo      `json:"recent_clicks,omitzero"`
+	ByUserAgent  map[string]int64 `json:"by_user_agent,omitzero"`
+	ByDay        map[string]int64 `json:"by_day,omitzero"`
+	ByMonth      map[string]int64 `json:"by_month,omitzero"`
 }
 
-// ClickInfo — сокращённая информация о клике для аналитики.
 type ClickInfo struct {
-	UserAgent string
-	IP        string
-	Referer   string
-	Timestamp time.Time
+	UserAgent string    `json:"user_agent"`
+	IP        string    `json:"ip"`
+	Referer   string    `json:"referer"`
+	Timestamp time.Time `json:"timestamp"`
 }

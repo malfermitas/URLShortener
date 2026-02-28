@@ -1,46 +1,56 @@
-FROM golang:1.25-alpine AS builder
+# --- Базовая конфигурация ---
+ARG GO_VERSION=1.25
+
+# --- Builder stage (prod) ---
+FROM golang:${GO_VERSION}-alpine AS builder
 
 WORKDIR /app
 
+# Кэширование зависимостей
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY config.yaml ./
-COPY .env ./
+# Копируем статические конфиги
+COPY config.yaml .env ./
 
+# Копируем всё остальное (только для сборки)
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main ./cmd/app
 
-FROM alpine:latest
+# Сборка (статическая, без cgo)
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-w -s" \
+    -o /app/main ./cmd/app
 
-RUN apk --no-cache add ca-certificates
+# --- Минимальный prod-образ ---
+FROM alpine AS prod
 
-WORKDIR /root/
+# Установка сертификатов и создание non-root пользователя
+RUN apk --no-cache add ca-certificates \
+    && addgroup -g 1001 -S appgroup \
+    && adduser -u 1001 -S appuser -G appgroup
 
-COPY --from=builder /app/main .
-COPY --from=builder /app/config.yaml .
+WORKDIR /app
+
+# Копируем только нужные файлы
+COPY --from=builder --chown=appuser:appgroup /app/main .
+COPY --from=builder --chown=appuser:appgroup /app/config.yaml .
+
+# Применяем non-root пользователя
+USER appuser
 
 EXPOSE 8080
-
 CMD ["./main"]
 
-FROM golang:1.25 AS debug
+# --- Debug-образ (отдельный слой, без дублирования исходников) ---
+# Можно использовать как `--target=debug`
+FROM builder AS debug
 
-WORKDIR /app
+RUN apk --no-cache add delve
 
-RUN go install github.com/go-delve/delve/cmd/dlv@latest
-
-COPY go.mod go.sum ./
-RUN go mod download
-
-COPY --from=builder /app/main .
-COPY config.yaml ./config.yaml
-COPY .env ./.env
-
-COPY . .
-
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -gcflags="all=-N -l" -o main ./cmd/app
+# Пересобираем с отладочной информацией
+RUN go build \
+    -gcflags="all=-N -l" \
+    -o /app/main_debug ./cmd/app
 
 EXPOSE 8080 40000
-
-CMD ["dlv", "--listen=:40000", "--headless=true", "--api-version=2", "--accept-multiclient", "exec", "./main"]
+CMD ["dlv", "--listen=:40000", "--headless=true", "--api-version=2", "--accept-multiclient", "exec", "/app/main_debug"]

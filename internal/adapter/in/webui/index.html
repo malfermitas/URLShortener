@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LinkShort - Сокращатель ссылок</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #ec4899;
+            --accent: #8b5cf6;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --error: #ef4444;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background-image: 
+                radial-gradient(ellipse at 20% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(236, 72, 153, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 50%, rgba(139, 92, 246, 0.08) 0%, transparent 70%);
+        }
+
+        .container {
+            width: 100%;
+            max-width: 520px;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 40px;
+            animation: fadeInDown 0.6s ease-out;
+        }
+
+        .logo h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 50%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.02em;
+        }
+
+        .logo p {
+            color: var(--text-muted);
+            margin-top: 8px;
+            font-size: 1rem;
+            font-weight: 300;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 24px;
+            padding: 32px;
+            box-shadow: 
+                0 4px 6px -1px rgba(0, 0, 0, 0.1),
+                0 2px 4px -2px rgba(0, 0, 0, 0.1),
+                0 0 0 1px rgba(255, 255, 255, 0.05);
+            animation: fadeInUp 0.6s ease-out 0.1s both;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-wrapper svg {
+            position: absolute;
+            left: 16px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            color: var(--text-muted);
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 16px 16px 16px 48px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: var(--text);
+            font-size: 1rem;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+        }
+
+        input[type="text"]::placeholder {
+            color: var(--text-muted);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 16px 24px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 40px -10px rgba(99, 102, 241, 0.5);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result {
+            margin-top: 24px;
+            padding: 20px;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 12px;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        .result.error {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .result-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--success);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .result.error .result-label {
+            color: var(--error);
+        }
+
+        .result-url {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 12px 16px;
+            border-radius: 8px;
+        }
+
+        .result-url a {
+            flex: 1;
+            color: var(--text);
+            text-decoration: none;
+            font-size: 0.95rem;
+            word-break: break-all;
+        }
+
+        .result-url a:hover {
+            color: var(--primary);
+        }
+
+        .copy-btn {
+            padding: 8px 16px;
+            background: var(--primary);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .copy-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .copy-btn.copied {
+            background: var(--success);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .card {
+                padding: 24px;
+            }
+            .logo h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1>LinkShort</h1>
+            <p>Сокращайте ссылки легко и быстро</p>
+        </div>
+
+        <div class="card">
+            <div class="input-group">
+                <label for="url">Введите длинную ссылку</label>
+                <div class="input-wrapper">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                    </svg>
+                    <input type="text" id="url" placeholder="https://example.com/очень-длинная-ссылка..." autocomplete="off">
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label for="custom">Свой суффикс (необязательно)</label>
+                <div class="input-wrapper">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
+                    </svg>
+                    <input type="text" id="custom" placeholder="mylink" autocomplete="off">
+                </div>
+            </div>
+
+            <button class="btn" id="shortenBtn" onclick="shortenUrl()">
+                Сократить ссылку
+            </button>
+
+            <div class="result" id="result">
+                <div class="result-label">Ваша короткая ссылка</div>
+                <div class="result-url">
+                    <a href="#" id="resultLink" target="_blank"></a>
+                    <button class="copy-btn" id="copyBtn" onclick="copyToClipboard()">Копировать</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlInput = document.getElementById('url');
+        const customInput = document.getElementById('custom');
+        const shortenBtn = document.getElementById('shortenBtn');
+        const result = document.getElementById('result');
+        const resultLink = document.getElementById('resultLink');
+        const copyBtn = document.getElementById('copyBtn');
+
+        let currentShortUrl = '';
+        const baseUrl = window.location.origin + '/s/';
+
+        urlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                shortenUrl();
+            }
+        });
+
+        customInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                shortenUrl();
+            }
+        });
+
+        async function shortenUrl() {
+            const url = urlInput.value.trim();
+            const custom = customInput.value.trim();
+
+            if (!url) {
+                showResult('Пожалуйста, введите ссылку', true);
+                return;
+            }
+
+            if (!isValidUrl(url)) {
+                showResult('Пожалуйста, введите корректную ссылку', true);
+                return;
+            }
+
+            shortenBtn.disabled = true;
+            shortenBtn.innerHTML = '<span class="spinner"></span>Сокращаем...';
+            result.classList.remove('show', 'error');
+
+            try {
+                const response = await fetch('/shorten', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        origin_url: url,
+                        custom_url: custom || undefined
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const shortCode = data.short_url;
+                    currentShortUrl = baseUrl + shortCode;
+                    resultLink.href = currentShortUrl;
+                    resultLink.textContent = currentShortUrl;
+                    showResult();
+                } else {
+                    showResult(data.error || 'Ошибка при создании ссылки', true);
+                }
+            } catch (error) {
+                showResult('Ошибка соединения с сервером', true);
+            } finally {
+                shortenBtn.disabled = false;
+                shortenBtn.textContent = 'Сократить ссылку';
+            }
+        }
+
+        function showResult(message = '', isError = false) {
+            if (message) {
+                result.classList.add('error');
+                resultLink.textContent = message;
+                resultLink.href = '#';
+            } else {
+                result.classList.remove('error');
+            }
+            result.classList.add('show');
+        }
+
+        function isValidUrl(string) {
+            try {
+                new URL(string);
+                return true;
+            } catch (_) {
+                return false;
+            }
+        }
+
+        async function copyToClipboard() {
+            if (!currentShortUrl) return;
+
+            try {
+                await navigator.clipboard.writeText(currentShortUrl);
+                copyBtn.textContent = 'Скопировано!';
+                copyBtn.classList.add('copied');
+                setTimeout(() => {
+                    copyBtn.textContent = 'Копировать';
+                    copyBtn.classList.remove('copied');
+                }, 2000);
+            } catch (err) {
+                const textarea = document.createElement('textarea');
+                textarea.value = currentShortUrl;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                copyBtn.textContent = 'Скопировано!';
+                copyBtn.classList.add('copied');
+                setTimeout(() => {
+                    copyBtn.textContent = 'Копировать';
+                    copyBtn.classList.remove('copied');
+                }, 2000);
+            }
+        }
+    </script>
+</body>
+</html>

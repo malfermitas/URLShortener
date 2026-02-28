@@ -19,4 +19,7 @@ type URLService interface {
 
 	// GetAnalytics возвращает аналитику по короткой ссылке.
 	GetAnalytics(ctx context.Context, shortURL string) (*model.Analytics, error)
+
+	// RecordHit записывает факт перехода по ссылке.
+	RecordHit(ctx context.Context, hit *model.URLHitEvent) error
 }

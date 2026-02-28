@@ -18,8 +18,8 @@ type shortenerHandler struct {
 }
 
 type ShortenRequest struct {
-	OriginURL string `json:"origin_url"`
-	CustomURL string `json:"custom_url,omitempty"`
+	OriginURL string `json:"origin_url" binding:"required,url"`
+	CustomURL string `json:"custom_url,omitzero" binding:"omitempty,alphanum,min=3,max=20"`
 }
 
 func NewShortenerHandler(urlService in.URLService) ShortenerHandler {
@@ -34,13 +34,16 @@ func (s shortenerHandler) Shorten(ctx *ginext.Context) {
 	if err != nil {
 		logging.AppLogger.Error("shorten request bind error: %s", err.Error())
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 
 	shortURL, err := s.service.Create(ctx, req.OriginURL, req.CustomURL)
 	if err != nil {
 		logging.AppLogger.Error("shorten service create error: %s", err.Error())
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
+	logging.AppLogger.Debug("URL shortened successfully", "short_url", shortURL)
 	ctx.JSON(http.StatusCreated, gin.H{"short_url": shortURL})
 }

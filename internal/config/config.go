@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"os"
+	"reflect"
+	"strconv"
 	"time"
 
 	"github.com/wb-go/wbf/config"
@@ -49,6 +51,7 @@ type LoggerConfig struct {
 
 func LoadConfig() (*Config, error) {
 	cfg := config.New()
+	cfg.EnableEnv("")
 
 	if err := cfg.LoadEnvFiles("./.env"); err != nil {
 		return nil, err
@@ -57,18 +60,121 @@ func LoadConfig() (*Config, error) {
 	if err := cfg.LoadConfigFiles("./config.yaml"); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
-	cfg.EnableEnv("")
 
 	var appConfig Config
 	if err := cfg.Unmarshal(&appConfig); err != nil {
 		return nil, err
 	}
 
-	appConfig.Database.Host = os.Getenv("DATABASE_HOST")
-	appConfig.Database.Port = os.Getenv("DATABASE_PORT")
-	appConfig.Database.User = os.Getenv("DATABASE_USER")
-	appConfig.Database.Password = os.Getenv("DATABASE_PASSWORD")
-	appConfig.Database.DatabaseName = os.Getenv("DATABASE_NAME")
-
+	err := LoadFromEnv(&appConfig)
+	if err != nil {
+		return nil, err
+	}
 	return &appConfig, nil
+}
+
+func LoadFromEnv(ptr interface{}) error {
+	v := reflect.ValueOf(ptr)
+	if v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Struct {
+		return fmt.Errorf("LoadFromEnv: expected pointer to struct, got %T", ptr)
+	}
+
+	// loadStruct рекурсивно обрабатывает структуру
+	var loadStruct func(v reflect.Value) error
+	loadStruct = func(v reflect.Value) error {
+		t := v.Type()
+
+		for i := 0; i < v.NumField(); i++ {
+			field := t.Field(i)
+			value := v.Field(i)
+
+			// Пропускаем неэкспортные поля
+			if !value.CanSet() {
+				continue
+			}
+
+			// Если это вложенная структура — спускаемся
+			if field.Type.Kind() == reflect.Struct && value.Kind() == reflect.Struct {
+				if err := loadStruct(value); err != nil {
+					return err
+				}
+				continue
+			}
+
+			envVar := field.Tag.Get("env")
+			if envVar == "" {
+				continue
+			}
+
+			envVal := os.Getenv(envVar)
+
+			if envVal == "" {
+				envVal = field.Tag.Get("envDefault")
+			}
+
+			if err := setFieldValue(value, envVal); err != nil {
+				return fmt.Errorf("env %s: %w", envVar, err)
+			}
+		}
+
+		return nil
+	}
+
+	v = v.Elem()
+	return loadStruct(v)
+}
+
+// setFieldValue приводит строку к типу поля и присваивает значение
+func setFieldValue(v reflect.Value, s string) error {
+	switch v.Kind() {
+	case reflect.String:
+		v.SetString(s)
+		return nil
+
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		i, err := strconv.ParseInt(s, 10, 64)
+		if err != nil {
+			return err
+		}
+		v.SetInt(i)
+		return nil
+
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		u, err := strconv.ParseUint(s, 10, 64)
+		if err != nil {
+			return err
+		}
+		v.SetUint(u)
+		return nil
+
+	case reflect.Bool:
+		b, err := strconv.ParseBool(s)
+		if err != nil {
+			return err
+		}
+		v.SetBool(b)
+		return nil
+
+	case reflect.Float32, reflect.Float64:
+		f, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return err
+		}
+		v.SetFloat(f)
+		return nil
+
+	case reflect.Struct:
+		if v.Type() == reflect.TypeOf(time.Duration(0)) {
+			d, err := time.ParseDuration(s)
+			if err != nil {
+				return err
+			}
+			v.Set(reflect.ValueOf(d))
+			return nil
+		}
+		return fmt.Errorf("unsupported struct type: %s", v.Type())
+
+	default:
+		return fmt.Errorf("unsupported kind: %s", v.Kind())
+	}
 }

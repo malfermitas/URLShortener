@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"fmt"
 	"time"
 	"urlshortener/internal/adapter/out/retry"
 	"urlshortener/internal/core/model"
@@ -121,25 +122,21 @@ func (u urlHitEventRepository) GetAggregatedByUserAgent(ctx context.Context, sho
 }
 
 func (u urlHitEventRepository) GetAggregatedByDay(ctx context.Context, shortKey string, from, to time.Time) (map[string]int64, error) {
-	query := `SELECT DATE(timestamp) as day, COUNT(*) as cnt FROM url_hit_events WHERE url_id = $1`
-	args := []interface{}{shortKey}
+	query := `SELECT DATE(timestamp)::text as day, COUNT(*) as cnt FROM url_hit_events WHERE url_id = $1`
+	args := []any{shortKey}
 
 	if !from.IsZero() {
-		query += " AND timestamp >= $2"
 		args = append(args, from)
+		query += fmt.Sprintf(" AND timestamp >= $%d", len(args))
 	}
 	if !to.IsZero() {
-		if len(args) == 2 {
-			query += " AND timestamp <= $3"
-		} else {
-			query += " AND timestamp <= $2"
-		}
 		args = append(args, to)
+		query += fmt.Sprintf(" AND timestamp <= $%d", len(args))
 	}
 
-	query += " GROUP BY DATE(timestamp) ORDER BY day"
+	query += " GROUP BY day ORDER BY day"
 
-	rows, err := u.db.QueryContext(ctx, query)
+	rows, err := u.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		logging.AppLogger.Error("Failed to get aggregated by day", err)
 		return nil, err
@@ -160,22 +157,18 @@ func (u urlHitEventRepository) GetAggregatedByDay(ctx context.Context, shortKey 
 
 func (u urlHitEventRepository) GetAggregatedByMonth(ctx context.Context, shortKey string, from, to time.Time) (map[string]int64, error) {
 	query := `SELECT TO_CHAR(timestamp, 'YYYY-MM') as month, COUNT(*) as cnt FROM url_hit_events WHERE url_id = $1`
-	args := []interface{}{shortKey}
+	args := []any{shortKey}
 
 	if !from.IsZero() {
-		query += " AND timestamp >= $2"
 		args = append(args, from)
+		query += fmt.Sprintf(" AND timestamp >= $%d", len(args))
 	}
 	if !to.IsZero() {
-		if len(args) == 2 {
-			query += " AND timestamp <= $3"
-		} else {
-			query += " AND timestamp <= $2"
-		}
 		args = append(args, to)
+		query += fmt.Sprintf(" AND timestamp <= $%d", len(args))
 	}
 
-	query += " GROUP BY TO_CHAR(timestamp, 'YYYY-MM') ORDER BY month"
+	query += " GROUP BY month ORDER BY month"
 
 	rows, err := u.db.QueryContext(ctx, query, args...)
 	if err != nil {

@@ -61,9 +61,10 @@ func main() {
 
 	shortenerHandler := handler.NewShortenerHandler(urlService)
 	redirectHandler := handler.NewRedirectHandler(urlService)
+	analyticsHandler := handler.NewAnalyticsHandler(urlService)
 	webUIHandler := webui.NewHandler(templatesDir)
 
-	router := rest.NewRouter(redirectHandler, shortenerHandler, webUIHandler, templatesDir)
+	router := rest.NewRouter(redirectHandler, shortenerHandler, analyticsHandler, webUIHandler, templatesDir)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{
