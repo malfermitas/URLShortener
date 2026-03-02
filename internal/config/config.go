@@ -126,6 +126,15 @@ func LoadFromEnv(ptr interface{}) error {
 
 // setFieldValue приводит строку к типу поля и присваивает значение
 func setFieldValue(v reflect.Value, s string) error {
+	if v.Type() == reflect.TypeOf(time.Duration(0)) {
+		d, err := time.ParseDuration(s)
+		if err != nil {
+			return err
+		}
+		v.Set(reflect.ValueOf(d))
+		return nil
+	}
+
 	switch v.Kind() {
 	case reflect.String:
 		v.SetString(s)
