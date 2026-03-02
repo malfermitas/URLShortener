@@ -8,6 +8,7 @@ import (
 	"urlshortener/internal/core/model"
 	"urlshortener/internal/core/port/out"
 	"urlshortener/internal/logging"
+	"urlshortener/internal/tracing"
 
 	"github.com/wb-go/wbf/dbpg"
 )
@@ -35,6 +36,9 @@ func NewURLHitEventRepository(dsn string) (out.URLHitEventRepository, error) {
 }
 
 func (u urlHitEventRepository) Store(ctx context.Context, click *model.URLHitEvent) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.StoreHitEvent")
+	defer span.End()
+
 	query := `INSERT INTO url_hit_events (url_id, user_agent, ip, country_code, referrer, device_type, os, browser, timestamp)
 			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
 	strategy := retry.GetDatabaseStrategy()
@@ -54,17 +58,22 @@ func (u urlHitEventRepository) Store(ctx context.Context, click *model.URLHitEve
 	)
 	if err != nil {
 		logging.AppLogger.Error("Failed to store click event", err)
+		tracing.RecordError(ctx, err)
 		return err
 	}
 	return nil
 }
 
 func (u urlHitEventRepository) GetTotalClicks(ctx context.Context, shortKey string) (int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.GetTotalClicks")
+	defer span.End()
+
 	query := `SELECT COUNT(*) FROM url_hit_events WHERE url_id = $1`
 	strategy := retry.GetDatabaseStrategy()
 	row, err := u.db.QueryRowWithRetry(ctx, strategy, query, shortKey)
 	if err != nil {
 		logging.AppLogger.Error("Failed to get total clicks", err)
+		tracing.RecordError(ctx, err)
 		return 0, err
 	}
 	var count int64
@@ -72,17 +81,22 @@ func (u urlHitEventRepository) GetTotalClicks(ctx context.Context, shortKey stri
 	err = row.Scan(&count)
 	if err != nil {
 		logging.AppLogger.Error("Failed to get total clicks", err)
+		tracing.RecordError(ctx, err)
 		return 0, err
 	}
 	return count, nil
 }
 
 func (u urlHitEventRepository) GetRecentClicks(ctx context.Context, shortKey string, limit int) ([]model.URLHitEvent, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.GetRecentClicks")
+	defer span.End()
+
 	query := `SELECT id, url_id, user_agent, ip, country_code, referrer, device_type, os, browser, timestamp
 			  FROM url_hit_events WHERE url_id = $1 ORDER BY timestamp DESC LIMIT $2`
 	rows, err := u.db.QueryContext(ctx, query, shortKey, limit)
 	if err != nil {
 		logging.AppLogger.Error("Failed to get recent clicks", err)
+		tracing.RecordError(ctx, err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -93,6 +107,7 @@ func (u urlHitEventRepository) GetRecentClicks(ctx context.Context, shortKey str
 		err := rows.Scan(&click.ID, &click.URLID, &click.UserAgent, &click.IP, &click.CountryCode, &click.Referrer, &click.DeviceType, &click.OS, &click.Browser, &click.Timestamp)
 		if err != nil {
 			logging.AppLogger.Error("Failed to scan click", err)
+			tracing.RecordError(ctx, err)
 			return nil, err
 		}
 		clicks = append(clicks, click)
@@ -101,10 +116,14 @@ func (u urlHitEventRepository) GetRecentClicks(ctx context.Context, shortKey str
 }
 
 func (u urlHitEventRepository) GetAggregatedByUserAgent(ctx context.Context, shortKey string) (map[string]int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.GetAggregatedByUserAgent")
+	defer span.End()
+
 	query := `SELECT user_agent, COUNT(*) as cnt FROM url_hit_events WHERE url_id = $1 GROUP BY user_agent`
 	rows, err := u.db.QueryContext(ctx, query, shortKey)
 	if err != nil {
 		logging.AppLogger.Error("Failed to get aggregated by user agent", err)
+		tracing.RecordError(ctx, err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -114,6 +133,7 @@ func (u urlHitEventRepository) GetAggregatedByUserAgent(ctx context.Context, sho
 		var userAgent string
 		var count int64
 		if err := rows.Scan(&userAgent, &count); err != nil {
+			tracing.RecordError(ctx, err)
 			return nil, err
 		}
 		result[userAgent] = count
@@ -122,6 +142,9 @@ func (u urlHitEventRepository) GetAggregatedByUserAgent(ctx context.Context, sho
 }
 
 func (u urlHitEventRepository) GetAggregatedByDay(ctx context.Context, shortKey string, from, to time.Time) (map[string]int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.GetAggregatedByDay")
+	defer span.End()
+
 	query := `SELECT DATE(timestamp)::text as day, COUNT(*) as cnt FROM url_hit_events WHERE url_id = $1`
 	args := []any{shortKey}
 
@@ -139,6 +162,7 @@ func (u urlHitEventRepository) GetAggregatedByDay(ctx context.Context, shortKey 
 	rows, err := u.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		logging.AppLogger.Error("Failed to get aggregated by day", err)
+		tracing.RecordError(ctx, err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -148,6 +172,7 @@ func (u urlHitEventRepository) GetAggregatedByDay(ctx context.Context, shortKey 
 		var day string
 		var count int64
 		if err := rows.Scan(&day, &count); err != nil {
+			tracing.RecordError(ctx, err)
 			return nil, err
 		}
 		result[day] = count
@@ -156,6 +181,9 @@ func (u urlHitEventRepository) GetAggregatedByDay(ctx context.Context, shortKey 
 }
 
 func (u urlHitEventRepository) GetAggregatedByMonth(ctx context.Context, shortKey string, from, to time.Time) (map[string]int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.GetAggregatedByMonth")
+	defer span.End()
+
 	query := `SELECT TO_CHAR(timestamp, 'YYYY-MM') as month, COUNT(*) as cnt FROM url_hit_events WHERE url_id = $1`
 	args := []any{shortKey}
 
@@ -173,6 +201,7 @@ func (u urlHitEventRepository) GetAggregatedByMonth(ctx context.Context, shortKe
 	rows, err := u.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		logging.AppLogger.Error("Failed to get aggregated by month", err)
+		tracing.RecordError(ctx, err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -182,6 +211,7 @@ func (u urlHitEventRepository) GetAggregatedByMonth(ctx context.Context, shortKe
 		var month string
 		var count int64
 		if err := rows.Scan(&month, &count); err != nil {
+			tracing.RecordError(ctx, err)
 			return nil, err
 		}
 		result[month] = count

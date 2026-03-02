@@ -10,8 +10,12 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      jaeger:
+        condition: service_started
     networks:
       - app-network
+    environment:
+      - TRACING_ENABLED=true
 
   prometheus:
     image: prom/prometheus:latest
@@ -38,6 +42,19 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=secret
     networks:
       - app-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    container_name: jaeger
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+      - "14268:14268"
+    networks:
+      - app-network
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
 
   app-debug:
     build:

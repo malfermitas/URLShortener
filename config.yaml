@@ -2,6 +2,11 @@ server:
   host: 0.0.0.0
   port: 8080
 
+tracing:
+  enabled: true
+  service_name: urlshortener
+  jaeger_endpoint: http://jaeger:14268/api/traces
+
 database:
   max_open_conns: 25
   max_idle_conns: 10

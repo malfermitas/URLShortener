@@ -2,9 +2,11 @@ package middleware
 
 import (
 	"time"
+	"urlshortener/internal/tracing"
+
+	"urlshortener/internal/logging"
 
 	"github.com/gin-gonic/gin"
-	"urlshortener/internal/logging"
 )
 
 // GinLogger is a simple middleware that logs incoming HTTP requests
@@ -32,6 +34,7 @@ func GinLogger() gin.HandlerFunc {
 				"latency_ms", latency.Milliseconds(),
 				"client_ip", c.ClientIP(),
 				"user_agent", c.Request.UserAgent(),
+				"trace_id", tracing.GetTraceID(c.Request.Context()),
 			)
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"urlshortener/internal/adapter/out/retry"
 	"urlshortener/internal/core/port/out"
 	"urlshortener/internal/logging"
+	"urlshortener/internal/tracing"
 
 	"github.com/wb-go/wbf/redis"
 )
@@ -36,6 +37,9 @@ func NewURLCache(addr string, password string, db int, maxTTL time.Duration) (ou
 }
 
 func (c *urlCache) Get(ctx context.Context, shortURL string) (string, error) {
+	ctx, span := tracing.StartSpan(ctx, "redis.Get")
+	defer span.End()
+
 	key := fmt.Sprintf("url:%s", shortURL)
 	strategy := retry.GetRedisStrategy()
 
@@ -45,6 +49,7 @@ func (c *urlCache) Get(ctx context.Context, shortURL string) (string, error) {
 	}
 	if err != nil {
 		logging.AppLogger.Error("Failed to get URL from cache", err)
+		tracing.RecordError(ctx, err)
 		return "", err
 	}
 
@@ -52,11 +57,15 @@ func (c *urlCache) Get(ctx context.Context, shortURL string) (string, error) {
 }
 
 func (c *urlCache) Set(ctx context.Context, shortURL, originalURL string) error {
+	ctx, span := tracing.StartSpan(ctx, "redis.Set")
+	defer span.End()
+
 	key := fmt.Sprintf("url:%s", shortURL)
 	strategy := retry.GetRedisStrategy()
 
 	if err := c.client.SetWithExpirationAndRetry(ctx, strategy, key, originalURL, c.ttl); err != nil {
 		logging.AppLogger.Error("Failed to set URL in cache", err)
+		tracing.RecordError(ctx, err)
 		return err
 	}
 
@@ -64,11 +73,15 @@ func (c *urlCache) Set(ctx context.Context, shortURL, originalURL string) error 
 }
 
 func (c *urlCache) Delete(ctx context.Context, shortKey string) error {
+	ctx, span := tracing.StartSpan(ctx, "redis.Delete")
+	defer span.End()
+
 	key := fmt.Sprintf("url:%s", shortKey)
 	strategy := retry.GetRedisStrategy()
 
 	if err := c.client.DelWithRetry(ctx, strategy, key); err != nil {
 		logging.AppLogger.Error("Failed to delete URL from cache", err)
+		tracing.RecordError(ctx, err)
 		return err
 	}
 	return nil

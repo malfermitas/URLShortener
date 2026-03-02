@@ -12,6 +12,7 @@ import (
 
 type Config struct {
 	Server   ServerConfig   `mapstructure:"server" yaml:"server"`
+	Tracing  TracingConfig  `mapstructure:"tracing" yaml:"tracing"`
 	Database DatabaseConfig `mapstructure:"database" yaml:"database"`
 	Redis    RedisConfig    `mapstructure:"redis" yaml:"redis"`
 	Logger   LoggerConfig   `mapstructure:"logger" yaml:"logger"`
@@ -20,6 +21,12 @@ type Config struct {
 type ServerConfig struct {
 	Host string `mapstructure:"host" yaml:"host" env:"SERVER_HOST" envDefault:"0.0.0.0"`
 	Port int    `mapstructure:"port" yaml:"port" env:"SERVER_PORT" envDefault:"8080"`
+}
+
+type TracingConfig struct {
+	Enabled        bool   `mapstructure:"enabled" yaml:"enabled"`
+	ServiceName    string `mapstructure:"service_name" yaml:"service_name"`
+	JaegerEndpoint string `mapstructure:"jaeger_endpoint" yaml:"jaeger_endpoint"`
 }
 
 type DatabaseConfig struct {

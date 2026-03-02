@@ -8,6 +8,7 @@ import (
 	"urlshortener/internal/core/port/in"
 	"urlshortener/internal/logging"
 	"urlshortener/internal/metrics"
+	"urlshortener/internal/tracing"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/wb-go/wbf/ginext"
@@ -29,21 +30,35 @@ func NewRedirectHandler(urlService in.URLService) RedirectHandler {
 
 func (r redirectHandler) Redirect(ctx *ginext.Context) {
 	shortKey := ctx.Param("short_url")
+	reqCtx := ctx.Request.Context()
 
 	v := validator.New(validator.WithRequiredStructEnabled())
 	if err := v.Var(shortKey, "required,alphanum"); err != nil {
-		logging.AppLogger.Debug("Invalid short URL format", "short_key", shortKey, "error", err.Error())
+		logging.AppLogger.Debug(
+			"Invalid short URL format",
+			"short_key", shortKey,
+			"error", err.Error(),
+			"trace_id", tracing.GetTraceID(reqCtx),
+		)
 		ctx.JSON(http.StatusBadRequest, "invalid short url format")
 		return
 	}
 
-	originalURL, err := r.urlService.GetOriginal(ctx, shortKey)
+	originalURL, err := r.urlService.GetOriginal(reqCtx, shortKey)
 	if err != nil {
 		if errors.Is(err, in.ErrNotFound) {
-			logging.AppLogger.Debug("Short URL not found", "short_key", shortKey)
+			logging.AppLogger.Debug(
+				"Short URL not found",
+				"short_key", shortKey,
+				"trace_id", tracing.GetTraceID(reqCtx),
+			)
 			ctx.JSON(http.StatusNotFound, err.Error())
 		} else {
-			logging.AppLogger.Error("Failed to get original URL", err, "short_key", shortKey)
+			logging.AppLogger.Error(
+				"Failed to get original URL", err,
+				"short_key", shortKey,
+				"trace_id", tracing.GetTraceID(reqCtx),
+			)
 			ctx.JSON(http.StatusInternalServerError, err.Error())
 		}
 		return
@@ -51,7 +66,7 @@ func (r redirectHandler) Redirect(ctx *ginext.Context) {
 	ctx.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 
 	go func(shortKey string, userAgent string, ip string, referrer string) {
-		err := r.urlService.RecordHit(ctx, &model.URLHitEvent{
+		err := r.urlService.RecordHit(reqCtx, &model.URLHitEvent{
 			URLID:     shortKey,
 			UserAgent: userAgent,
 			IP:        ip,
@@ -63,7 +78,12 @@ func (r redirectHandler) Redirect(ctx *ginext.Context) {
 		}
 	}(shortKey, ctx.GetHeader("User-Agent"), ctx.ClientIP(), ctx.GetHeader("Referer"))
 
-	logging.AppLogger.Debug("Redirecting", "short_key", shortKey, "original_url", originalURL)
+	logging.AppLogger.Debug(
+		"Redirecting",
+		"short_key", shortKey,
+		"original_url", originalURL,
+		"trace_id", tracing.GetTraceID(reqCtx),
+	)
 	if metrics.RedirectsTotal != nil {
 		metrics.RedirectsTotal.Inc()
 	}

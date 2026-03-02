@@ -9,8 +9,10 @@ import (
 	"urlshortener/internal/core/port/out"
 	"urlshortener/internal/logging"
 	"urlshortener/internal/metrics"
+	"urlshortener/internal/tracing"
 
 	"github.com/go-playground/validator/v10"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type urlService struct {
@@ -32,13 +34,19 @@ func NewUrlService(urlRepo out.URLRepository, keyGenerator out.KeyGenerator, hit
 }
 
 func (u urlService) Create(ctx context.Context, originalURL string, customURL string) (string, error) {
+	ctx, span := tracing.StartSpan(ctx, "urlService.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("url.original", originalURL))
+
 	if err := u.validate.Var(originalURL, "required,url"); err != nil {
 		logging.AppLogger.Debug("Invalid URL provided", "error", err.Error())
+		tracing.RecordError(ctx, err)
 		return "", err
 	}
 
 	if err := u.validate.Var(customURL, "omitempty,alphanum,min=3,max=20"); err != nil {
 		logging.AppLogger.Debug("Invalid custom URL provided", "error", err.Error())
+		tracing.RecordError(ctx, err)
 		return "", err
 	}
 
@@ -48,6 +56,7 @@ func (u urlService) Create(ctx context.Context, originalURL string, customURL st
 			existing, err := u.urlRepo.FindByKey(ctx, customURL)
 			if err != nil {
 				logging.AppLogger.Error("Failed to check key existence", err)
+				tracing.RecordError(ctx, err)
 				return "", err
 			}
 			if existing == nil {
@@ -58,10 +67,12 @@ func (u urlService) Create(ctx context.Context, originalURL string, customURL st
 		existing, err := u.urlRepo.FindByKey(ctx, customURL)
 		if err != nil {
 			logging.AppLogger.Error("Failed to check custom key existence", err)
+			tracing.RecordError(ctx, err)
 			return "", err
 		}
 		if existing != nil {
 			logging.AppLogger.Debug("Custom key already exists", "key", customURL)
+			tracing.RecordError(ctx, errors.New("key already exists"))
 			return "", errors.New("key already exists")
 		}
 	}
@@ -74,9 +85,10 @@ func (u urlService) Create(ctx context.Context, originalURL string, customURL st
 
 	if err := u.urlRepo.Store(ctx, url); err != nil {
 		logging.AppLogger.Error("Failed to store URL", err)
+		tracing.RecordError(ctx, err)
 		return "", err
 	}
-	// cache the mapping
+	span.SetAttributes(attribute.String("url.short_code", customURL))
 	if err := u.cache.Set(ctx, customURL, originalURL); err != nil {
 		logging.AppLogger.Warn("Failed to cache URL", "key", customURL, "error", err.Error())
 	} else {
@@ -95,6 +107,10 @@ func (u urlService) Create(ctx context.Context, originalURL string, customURL st
 }
 
 func (u urlService) GetOriginal(ctx context.Context, shortURL string) (string, error) {
+	ctx, span := tracing.StartSpan(ctx, "urlService.GetOriginal")
+	defer span.End()
+	span.SetAttributes(attribute.String("url.short_code", shortURL))
+
 	cached, err := u.cache.Get(ctx, shortURL)
 	if err == nil {
 		if cached != "" {
@@ -109,18 +125,22 @@ func (u urlService) GetOriginal(ctx context.Context, shortURL string) (string, e
 	}
 	if err == nil && cached != "" {
 		logging.AppLogger.Debug("Cache hit", "short_code", shortURL)
+		span.SetAttributes(attribute.Bool("cache.hit", true))
 		return cached, nil
 	}
 
 	logging.AppLogger.Debug("Cache miss", "short_code", shortURL)
+	span.SetAttributes(attribute.Bool("cache.hit", false))
 
 	url, err := u.urlRepo.FindByKey(ctx, shortURL)
 	if err != nil {
 		logging.AppLogger.Error("Failed to fetch URL from DB", err, "short_code", shortURL)
+		tracing.RecordError(ctx, err)
 		return "", err
 	}
 	if url == nil {
 		logging.AppLogger.Debug("URL not found", "short_code", shortURL)
+		tracing.RecordError(ctx, errors.New("URL not found"))
 		return "", in.ErrNotFound
 	}
 
@@ -138,25 +158,33 @@ func (u urlService) GetOriginal(ctx context.Context, shortURL string) (string, e
 }
 
 func (u urlService) GetAnalytics(ctx context.Context, shortURL string) (*model.Analytics, error) {
+	ctx, span := tracing.StartSpan(ctx, "urlService.GetAnalytics")
+	defer span.End()
+	span.SetAttributes(attribute.String("url.short_code", shortURL))
+
 	existing, err := u.urlRepo.FindByKey(ctx, shortURL)
 	if err != nil {
 		logging.AppLogger.Error("Failed to fetch URL for analytics", err, "short_code", shortURL)
+		tracing.RecordError(ctx, err)
 		return nil, err
 	}
 	if existing == nil {
 		logging.AppLogger.Debug("URL not found for analytics", "short_code", shortURL)
+		tracing.RecordError(ctx, errors.New("URL not found"))
 		return nil, errors.New("URL not found")
 	}
 
 	totalClicks, err := u.hitRepo.GetTotalClicks(ctx, shortURL)
 	if err != nil {
 		logging.AppLogger.Error("Failed to get total clicks", err, "short_code", shortURL)
+		tracing.RecordError(ctx, err)
 		return nil, err
 	}
 
 	recentClicks, err := u.hitRepo.GetRecentClicks(ctx, shortURL, 100)
 	if err != nil {
 		logging.AppLogger.Error("Failed to get recent clicks", err, "short_code", shortURL)
+		tracing.RecordError(ctx, err)
 		return nil, err
 	}
 
@@ -173,18 +201,21 @@ func (u urlService) GetAnalytics(ctx context.Context, shortURL string) (*model.A
 	byUserAgent, err := u.hitRepo.GetAggregatedByUserAgent(ctx, shortURL)
 	if err != nil {
 		logging.AppLogger.Error("Failed to get aggregated by user agent", err, "short_code", shortURL)
+		tracing.RecordError(ctx, err)
 		return nil, err
 	}
 
 	byDay, err := u.hitRepo.GetAggregatedByDay(ctx, shortURL, time.Time{}, time.Time{})
 	if err != nil {
 		logging.AppLogger.Error("Failed to get aggregated by day", err, "short_code", shortURL)
+		tracing.RecordError(ctx, err)
 		return nil, err
 	}
 
 	byMonth, err := u.hitRepo.GetAggregatedByMonth(ctx, shortURL, time.Time{}, time.Time{})
 	if err != nil {
 		logging.AppLogger.Error("Failed to get aggregated by month", err, "short_code", shortURL)
+		tracing.RecordError(ctx, err)
 		return nil, err
 	}
 
@@ -201,8 +232,13 @@ func (u urlService) GetAnalytics(ctx context.Context, shortURL string) (*model.A
 }
 
 func (u urlService) RecordHit(ctx context.Context, hit *model.URLHitEvent) error {
+	ctx, span := tracing.StartSpan(ctx, "urlService.RecordHit")
+	defer span.End()
+	span.SetAttributes(attribute.String("hit.url_id", hit.URLID))
+
 	if err := u.hitRepo.Store(ctx, hit); err != nil {
 		logging.AppLogger.Error("Failed to record hit", err, "url_id", hit.URLID)
+		tracing.RecordError(ctx, err)
 		return err
 	}
 	logging.AppLogger.Debug("Hit recorded", "url_id", hit.URLID, "ip", hit.IP)

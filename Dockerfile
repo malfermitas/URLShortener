@@ -45,7 +45,7 @@ CMD ["./main"]
 # Можно использовать как `--target=debug`
 FROM builder AS debug
 
-RUN apk --no-cache add delve
+RUN apk add delve
 
 # Пересобираем с отладочной информацией
 RUN go build \

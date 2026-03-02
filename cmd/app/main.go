@@ -21,6 +21,7 @@ import (
 	"urlshortener/internal/core/service"
 	"urlshortener/internal/logging"
 	"urlshortener/internal/metrics"
+	"urlshortener/internal/tracing"
 )
 
 func main() {
@@ -35,6 +36,10 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
+	}
+
+	if err := tracing.InitTracing(cfg.Tracing); err != nil {
+		logging.AppLogger.Warn("Failed to initialize tracing", "error", err.Error())
 	}
 
 	templatesDir := "internal/adapter/in/webui"
