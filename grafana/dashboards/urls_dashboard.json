@@ -1,0 +1,36 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "urls-dashboard",
+    "title": "URL Shortener Metrics",
+    "schemaVersion": 30,
+    "version": 1,
+    "panels": [
+      {
+        "type": "graph",
+        "title": "HTTP requests total",
+        "gridPosition": {"x": 0, "y": 0, "w": 24, "h": 9},
+        "targets": [
+          {
+            "expr": "sum by (path, method) (rate(http_requests_total[5m]))",
+            "legendFormat": "{{path}} {{method}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "type": "graph",
+        "title": "HTTP latency (5m)",
+        "gridPosition": {"x": 0, "y": 9, "w": 24, "h": 9},
+        "targets": [
+          {
+            "expr": "avg by (path) (rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m]))",
+            "legendFormat": "{{path}}",
+            "refId": "B"
+          }
+        ]
+      }
+    ]
+  },
+  "overwrite": true
+}
