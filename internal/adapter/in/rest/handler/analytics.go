@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"urlshortener/internal/core/port/in"
 	"urlshortener/internal/logging"
+	"urlshortener/internal/metrics"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/wb-go/wbf/ginext"
@@ -32,6 +33,11 @@ func (h analyticsHandler) GetAnalytics(ctx *ginext.Context) {
 		logging.AppLogger.Debug("Invalid short URL format in analytics request", "short_key", shortKey, "error", err.Error())
 		ctx.JSON(http.StatusBadRequest, "invalid short url format")
 		return
+	}
+
+	// Prometheus metric: analytics query
+	if metrics.AnalyticsQueriesTotal != nil {
+		metrics.AnalyticsQueriesTotal.Inc()
 	}
 
 	analytics, err := h.urlService.GetAnalytics(ctx, shortKey)

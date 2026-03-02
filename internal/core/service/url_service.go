@@ -8,6 +8,7 @@ import (
 	"urlshortener/internal/core/port/in"
 	"urlshortener/internal/core/port/out"
 	"urlshortener/internal/logging"
+	"urlshortener/internal/metrics"
 
 	"github.com/go-playground/validator/v10"
 )
@@ -75,9 +76,17 @@ func (u urlService) Create(ctx context.Context, originalURL string, customURL st
 		logging.AppLogger.Error("Failed to store URL", err)
 		return "", err
 	}
-
+	// cache the mapping
 	if err := u.cache.Set(ctx, customURL, originalURL); err != nil {
 		logging.AppLogger.Warn("Failed to cache URL", "key", customURL, "error", err.Error())
+	} else {
+		if metrics.CacheSetsTotal != nil {
+			metrics.CacheSetsTotal.Inc()
+		}
+	}
+
+	if metrics.UrlsCreatedTotal != nil {
+		metrics.UrlsCreatedTotal.Inc()
 	}
 
 	logging.AppLogger.Info("URL created successfully", "short_code", customURL, "original_url", originalURL)
@@ -87,6 +96,17 @@ func (u urlService) Create(ctx context.Context, originalURL string, customURL st
 
 func (u urlService) GetOriginal(ctx context.Context, shortURL string) (string, error) {
 	cached, err := u.cache.Get(ctx, shortURL)
+	if err == nil {
+		if cached != "" {
+			if metrics.CacheHitsTotal != nil {
+				metrics.CacheHitsTotal.Inc()
+			}
+		} else {
+			if metrics.CacheMissesTotal != nil {
+				metrics.CacheMissesTotal.Inc()
+			}
+		}
+	}
 	if err == nil && cached != "" {
 		logging.AppLogger.Debug("Cache hit", "short_code", shortURL)
 		return cached, nil
@@ -106,6 +126,10 @@ func (u urlService) GetOriginal(ctx context.Context, shortURL string) (string, e
 
 	if err := u.cache.Set(ctx, shortURL, url.OriginalURL); err != nil {
 		logging.AppLogger.Warn("Failed to cache URL after fetch", "key", shortURL, "error", err.Error())
+	} else {
+		if metrics.CacheSetsTotal != nil {
+			metrics.CacheSetsTotal.Inc()
+		}
 	}
 
 	logging.AppLogger.Debug("URL fetched from DB", "short_code", shortURL)

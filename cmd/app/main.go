@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +20,7 @@ import (
 	"urlshortener/internal/config"
 	"urlshortener/internal/core/service"
 	"urlshortener/internal/logging"
+	"urlshortener/internal/metrics"
 )
 
 func main() {
@@ -35,6 +38,9 @@ func main() {
 	}
 
 	templatesDir := "internal/adapter/in/webui"
+
+	// Initialize Prometheus metrics
+	metrics.InitMetrics()
 
 	urlRepo, err := postgres.NewURLRepository(cfg.Database.DSN())
 	if err != nil {
@@ -65,6 +71,10 @@ func main() {
 	webUIHandler := webui.NewHandler(templatesDir)
 
 	router := rest.NewRouter(redirectHandler, shortenerHandler, analyticsHandler, webUIHandler, templatesDir)
+	// Apply Prometheus metrics middleware for HTTP metrics
+	router.Use(metrics.MetricsMiddleware())
+	// Expose Prometheus metrics endpoint
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{

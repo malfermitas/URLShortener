@@ -7,6 +7,7 @@ import (
 	"urlshortener/internal/core/model"
 	"urlshortener/internal/core/port/in"
 	"urlshortener/internal/logging"
+	"urlshortener/internal/metrics"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/wb-go/wbf/ginext"
@@ -50,7 +51,7 @@ func (r redirectHandler) Redirect(ctx *ginext.Context) {
 	ctx.Header("Cache-Control", "no-cache, no-store, must-revalidate")
 
 	go func(shortKey string, userAgent string, ip string, referrer string) {
-		err := r.urlService.RecordHit(ctx.Request.Context(), &model.URLHitEvent{
+		err := r.urlService.RecordHit(ctx, &model.URLHitEvent{
 			URLID:     shortKey,
 			UserAgent: userAgent,
 			IP:        ip,
@@ -63,5 +64,11 @@ func (r redirectHandler) Redirect(ctx *ginext.Context) {
 	}(shortKey, ctx.GetHeader("User-Agent"), ctx.ClientIP(), ctx.GetHeader("Referer"))
 
 	logging.AppLogger.Debug("Redirecting", "short_key", shortKey, "original_url", originalURL)
+	if metrics.RedirectsTotal != nil {
+		metrics.RedirectsTotal.Inc()
+	}
+	if metrics.UrlRedirectsTotal != nil {
+		metrics.UrlRedirectsTotal.WithLabelValues(shortKey).Inc()
+	}
 	ctx.Redirect(http.StatusMovedPermanently, originalURL)
 }
