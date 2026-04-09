@@ -51,18 +51,7 @@ func (u urlService) Create(ctx context.Context, originalURL string, customURL st
 	}
 
 	if customURL == "" {
-		for range 5 {
-			customURL = u.keyGenerator.Generate()
-			existing, err := u.urlRepo.FindByKey(ctx, customURL)
-			if err != nil {
-				logging.AppLogger.Error("Failed to check key existence", err)
-				tracing.RecordError(ctx, err)
-				return "", err
-			}
-			if existing == nil {
-				break
-			}
-		}
+		customURL = u.keyGenerator.Generate()
 	} else {
 		existing, err := u.urlRepo.FindByKey(ctx, customURL)
 		if err != nil {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"time"
+
 	"urlshortener/internal/core/model"
 	"urlshortener/internal/core/port/in"
 	"urlshortener/internal/logging"
@@ -20,11 +21,13 @@ type RedirectHandler interface {
 
 type redirectHandler struct {
 	urlService in.URLService
+	validate   *validator.Validate
 }
 
 func NewRedirectHandler(urlService in.URLService) RedirectHandler {
 	return &redirectHandler{
 		urlService: urlService,
+		validate:   validator.New(validator.WithRequiredStructEnabled()),
 	}
 }
 
@@ -32,8 +35,7 @@ func (r redirectHandler) Redirect(ctx *ginext.Context) {
 	shortKey := ctx.Param("short_url")
 	reqCtx := ctx.Request.Context()
 
-	v := validator.New(validator.WithRequiredStructEnabled())
-	if err := v.Var(shortKey, "required,alphanum"); err != nil {
+	if err := r.validate.Var(shortKey, "required,alphanum"); err != nil {
 		logging.AppLogger.Debug(
 			"Invalid short URL format",
 			"short_key", shortKey,

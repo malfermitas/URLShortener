@@ -4,13 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"urlshortener/internal/adapter/in/rest"
 	"urlshortener/internal/adapter/in/rest/handler"
 	"urlshortener/internal/adapter/in/webui"
@@ -80,6 +82,10 @@ func main() {
 	router.Use(metrics.MetricsMiddleware())
 	// Expose Prometheus metrics endpoint
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+	// Pprof endpoints
+	router.GET("/debug/pprof/*path", gin.WrapH(http.DefaultServeMux))
+	router.GET("/debug/pprof", gin.WrapH(http.DefaultServeMux))
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{

@@ -2,6 +2,7 @@ package rest
 
 import (
 	"fmt"
+
 	"urlshortener/internal/adapter/in/rest/handler"
 	restmiddleware "urlshortener/internal/adapter/in/rest/middleware"
 	"urlshortener/internal/adapter/in/webui"
@@ -13,8 +14,9 @@ import (
 )
 
 func NewRouter(r handler.RedirectHandler, s handler.ShortenerHandler, a handler.AnalyticsHandler, w *webui.Handler, templatesDir string) *gin.Engine {
-	router := gin.Default()
+	router := gin.New()
 
+	router.Use(gin.Recovery())
 	router.Use(otelgin.Middleware("urlshortener"))
 	router.Use(panicRecoveryMiddleware())
 	router.Use(restmiddleware.GinLogger())

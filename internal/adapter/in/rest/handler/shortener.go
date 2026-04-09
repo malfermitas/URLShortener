@@ -51,10 +51,6 @@ func (s shortenerHandler) Shorten(ctx *ginext.Context) {
 		return
 	}
 
-	logging.AppLogger.Info(
-		"URL shortened successfully",
-		"short_url", shortURL,
-		"trace_id", tracing.GetTraceID(ctx.Request.Context()),
-	)
+	logging.AppLogger.Info("URL shortened successfully", "short_url", shortURL)
 	ctx.JSON(http.StatusCreated, gin.H{"short_url": shortURL})
 }
