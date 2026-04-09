@@ -54,7 +54,7 @@ func InitTracing(cfg config.TracingConfig) error {
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(res),
-		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(0.2)),
 	)
 
 	otel.SetTracerProvider(tp)
